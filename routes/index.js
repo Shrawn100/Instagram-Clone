@@ -45,4 +45,39 @@ function verifyAndDecodeToken(req, res, next) {
   }
 }
 
+/* Setup login route */
+
+router.post("/login", [
+  body("username").trim().isLength({ min: 1 }).escape(),
+  body("password").trim().isLength({ min: 1 }).escape(),
+
+  asyncHandler(async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.json({ message: "Unsuccessful", errors: errors.array() });
+    }
+
+    const { username, password } = req.body;
+    const user = await User.findOne({ username });
+
+    if (!user) {
+      return res.json({ message: "User does not exist" });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      return res.json({ message: "Wrong password" });
+    }
+
+    jwt.sign(
+      { user },
+      process.env.SECRET,
+      { expiresIn: "12h" },
+      (err, token) => {
+        res.json({ token });
+      }
+    );
+  }),
+]);
+
 module.exports = router;
