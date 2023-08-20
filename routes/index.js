@@ -1,6 +1,6 @@
 var express = require("express");
 var router = express.Router();
-
+const User = require("../models/Users");
 //Require the libraries
 require("dotenv").config();
 const { body, validationResult } = require("express-validator");
