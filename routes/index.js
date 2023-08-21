@@ -48,26 +48,49 @@ function verifyAndDecodeToken(req, res, next) {
 /* ---------- SIGNUP && LOGIN ROUTES --------- */
 
 router.post("/signup", [
-  body("username", "Username must be atleast 3 characters")
+  body("name", "Display name must be at least 3 characters")
     .trim()
     .isLength({ min: 3 })
     .escape(),
-  body("password", "Password must be atleast 6 characters")
+  body("username", "Username must be at least 3 characters")
+    .trim()
+    .isLength({ min: 3 })
+    .escape(),
+  body("password", "Password must be at least 6 characters")
     .trim()
     .isLength({ min: 6 })
+    .custom((value, { req }) => {
+      if (!/(?=.*[A-Z])/.test(value)) {
+        throw new Error("Password must contain at least 1 capital letter");
+      }
+      if (!/(?=.*\d)/.test(value)) {
+        throw new Error("Password must contain at least 1 number");
+      }
+      return value;
+    })
     .escape(),
 
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.json({ message: "Validation failed", errors: errors.array() });
+      const errorMessages = errors.array().map((error) => error.msg);
+      return res.json({ message: "Validation failed", errors: errorMessages });
     }
 
-    const { username, password } = req.body;
+    const { username, password, name } = req.body;
     try {
+      // Check if user with the same username already exists
+      const existingUser = await User.findOne({ username });
+      if (existingUser) {
+        return res.json({
+          message: "Username already exists. Please pick another one.",
+        });
+      }
+
       const hashedPassword = await bcrypt.hash(password, 10); // Hash the password using bcrypt
 
       const newUser = new User({
+        name,
         username,
         password: hashedPassword, // Store the hashed password in the database
       });
@@ -81,6 +104,7 @@ router.post("/signup", [
     }
   },
 ]);
+
 router.post("/login", [
   body("username", "Invalid username").trim().isLength({ min: 3 }).escape(),
   body("password", "Invalid password").trim().isLength({ min: 6 }).escape(),
