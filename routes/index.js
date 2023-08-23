@@ -138,4 +138,15 @@ router.post("/login", [
   }),
 ]);
 
+/* ---------- USER PROFILE ROUTES --------- */
+
+router.get(
+  "/profile",
+  verifyAndDecodeToken,
+  asyncHandler(async (req, res, next) => {
+    let userdata = req.authData.user;
+    res.json({ userdata });
+  })
+);
+
 module.exports = router;
