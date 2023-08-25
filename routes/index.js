@@ -139,7 +139,31 @@ router.post("/login", [
 ]);
 
 /* ---------- USER PROFILE ROUTES --------- */
+router.get(
+  "/home",
+  verifyAndDecodeToken,
+  asyncHandler(async (req, res, next) => {
+    const userID = req.authData.user._id;
 
+    // Find the user's following list and populate the 'following' field
+    const user = await User.findById(userID).populate("following");
+
+    const postsList = [];
+
+    // Iterate through the users the authenticated user is following
+    for (const followingUser of user.following) {
+      // Iterate through the posts of the following user
+      for (const post of followingUser.posts) {
+        postsList.push(post);
+      }
+    }
+
+    // Sort posts by date in descending order (most recent first)
+    const sortedPostsList = postsList.sort((a, b) => b.date - a.date);
+
+    res.json({ sortedPostsList });
+  })
+);
 router.get(
   "/profile",
   verifyAndDecodeToken,
