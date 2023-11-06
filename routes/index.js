@@ -1,6 +1,7 @@
 var express = require("express");
 var router = express.Router();
 const User = require("../models/Users");
+const Message = require("../models/Messages");
 const path = require("path"); // Import the path module
 //Require the libraries
 require("dotenv").config();
@@ -212,6 +213,90 @@ router.post(
     await newPost.save();
 
     res.send("Multiple Files Upload Success");
+  })
+);
+
+/* DM Routes */
+
+// List all DM conversations for the current user, including the most recent message
+router.get(
+  "/inbox",
+  verifyAndDecodeToken,
+  asyncHandler(async (req, res) => {
+    const currentUserId = req.authData.user._id; // Get the current user's ID from the request parameters
+
+    // Find all unique combinations of sender and receiver, which represent DM conversations involving the current user
+    const conversations = await Message.aggregate([
+      {
+        $match: {
+          $or: [
+            { sender: mongoose.Types.ObjectId(currentUserId) },
+            { receiver: mongoose.Types.ObjectId(currentUserId) },
+          ],
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $eq: ["$sender", mongoose.Types.ObjectId(currentUserId)] },
+              "$receiver",
+              "$sender",
+            ],
+          },
+        },
+      },
+    ]);
+
+    // Add user information and most recent message to each conversation
+    const conversationsWithRecentMessages = await Promise.all(
+      conversations.map(async (conversation) => {
+        const otherUserId = conversation._id;
+        const otherUser = await User.findById(otherUserId); // Assuming you have a User model
+
+        // Find the most recent message in the conversation
+        const mostRecentMessage = await Message.find({
+          $or: [
+            {
+              sender: mongoose.Types.ObjectId(currentUserId),
+              receiver: otherUserId,
+            },
+            {
+              sender: otherUserId,
+              receiver: mongoose.Types.ObjectId(currentUserId),
+            },
+          ],
+        })
+          .sort({ timestamp: -1 })
+          .limit(1);
+
+        return {
+          _id: otherUserId,
+          username: otherUser.username, // Include any other user information you want
+          mostRecentMessage: mostRecentMessage[0], // Include the most recent message
+        };
+      })
+    );
+    res.json(conversationsWithRecentMessages);
+  })
+);
+
+// Get the full message history for a specific conversation
+router.get(
+  "/conversation/:id",
+  verifyAndDecodeToken,
+  asyncHandler(async (req, res) => {
+    const conversationId = req.params.id; // This ID represents a conversation between two users
+
+    // Find all messages for the given conversation
+    const messages = await Message.find({
+      $or: [{ sender: conversationId }, { receiver: conversationId }],
+    })
+      .sort({ timestamp: 1 }) // Sort messages by timestamp in ascending order
+      .populate("sender") // Populate the sender field with user information
+      .populate("receiver"); // Populate the receiver field with user information
+
+    res.json(messages);
   })
 );
 
