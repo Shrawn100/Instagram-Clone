@@ -1,12 +1,16 @@
 var express = require("express");
 var router = express.Router();
 const User = require("../models/Users");
+const path = require("path"); // Import the path module
 //Require the libraries
 require("dotenv").config();
 const { body, validationResult } = require("express-validator");
 const asyncHandler = require("express-async-handler");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+
+const multer = require("multer");
+const Post = require("../models/Posts");
 
 /* GET home page. */
 router.get("/", function (req, res, next) {
@@ -40,6 +44,7 @@ function verifyAndDecodeToken(req, res, next) {
       }
     });
   } else {
+    console.log("not allowed");
     // Forbidden
     res.sendStatus(403);
   }
@@ -170,6 +175,43 @@ router.get(
   asyncHandler(async (req, res, next) => {
     let userdata = req.authData.user;
     res.json({ userdata });
+  })
+);
+
+/* ---------- Multer ROUTES --------- */
+
+// Set up multer middleware
+
+const fileStorageEngine = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, "../images"));
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "--" + file.originalname);
+  },
+});
+
+const upload = multer({ storage: fileStorageEngine });
+
+router.post(
+  "/upload",
+  upload.array("images", 5),
+  verifyAndDecodeToken,
+  asyncHandler(async (req, res, next) => {
+    let fileNameArray = [];
+    req.files.forEach((file) => {
+      console.log(file.filename);
+      fileNameArray.push(file.filename);
+    });
+    console.log(req.body.caption);
+    const newPost = new Post({
+      creator: req.authData.user._id,
+      content: fileNameArray,
+      caption: req.body.caption,
+    });
+    await newPost.save();
+
+    res.send("Multiple Files Upload Success");
   })
 );
 
